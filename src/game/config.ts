@@ -45,3 +45,10 @@ export const SLEEP_REGEN_PER_HOUR = 15
 export const HERITAGE_COINS = 25
 
 export const DAILY_STREAK_BONUS = 10
+
+/**
+ * Rewarded plays per mini-game per day. Playing past this still works (it's
+ * still fun / practice) but stops paying out — this is what actually caps
+ * the economy, since a single game can otherwise be replayed instantly.
+ */
+export const MINIGAME_DAILY_REWARDED_PLAYS = 3

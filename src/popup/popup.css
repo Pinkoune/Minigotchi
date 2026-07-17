@@ -459,6 +459,21 @@ h1, h2, h3 {
 .mg-card:hover { filter: brightness(1.05); }
 .mg-card:active { transform: translateY(1px); }
 
+.mg-card-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+}
+
+.mg-plays-left {
+  font-size: 10px;
+  font-weight: 500;
+  color: #6b5410;
+  opacity: 0.85;
+}
+
 .mg-backbar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .mg-backbar button { color: var(--accent-dark); font-weight: 600; }
 .mg-result { text-align: center; padding: 6px; }
