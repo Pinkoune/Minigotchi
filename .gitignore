@@ -11,3 +11,4 @@ backend/*.db
 backend/.pytest_cache/
 __pycache__/
 .pytest_cache/
+backend/*.egg-info/
