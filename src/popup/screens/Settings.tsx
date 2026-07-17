@@ -2,7 +2,7 @@ import { useGame } from '../store'
 import { SyncIndicator } from '../components/Hud'
 
 export function SettingsScreen() {
-  const { save, session, syncStatus, updateSettings, logout } = useGame()
+  const { save, profile, syncStatus, updateSettings, logout } = useGame()
   if (!save) return null
 
   return (
@@ -27,13 +27,13 @@ export function SettingsScreen() {
       </label>
 
       <h3>Compte</h3>
-      {session ? (
+      {profile ? (
         <div className="account">
-          {session.avatar && <img src={session.avatar} alt="" width={32} height={32} className="avatar" />}
+          {profile.avatar && <img src={profile.avatar} alt="" width={32} height={32} className="avatar" />}
           <div>
-            <strong>{session.name}</strong>
-            <span>{session.email}</span>
-            <span className="account-provider">via {session.provider === 'google' ? 'Google' : 'Microsoft'}</span>
+            <strong>{profile.name}</strong>
+            <span>{profile.email}</span>
+            <span className="account-provider">via {profile.provider === 'google' ? 'Google' : 'Microsoft'}</span>
           </div>
           <SyncIndicator status={syncStatus} />
           <button className="danger" onClick={logout}>

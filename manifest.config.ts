@@ -1,10 +1,5 @@
 import { defineManifest } from '@crxjs/vite-plugin'
 
-// The backend origin is injected at build time from .env (VITE_API_URL).
-// Never hardcode it: host_permissions must match the deployed API.
-const apiUrl = process.env.VITE_API_URL ?? 'http://localhost:8000'
-const apiOrigin = new URL(apiUrl).origin + '/*'
-
 export default defineManifest({
   manifest_version: 3,
   name: 'Minigotchi',
@@ -28,5 +23,13 @@ export default defineManifest({
     type: 'module',
   },
   permissions: ['identity', 'storage', 'alarms', 'notifications'],
-  host_permissions: [apiOrigin],
+  // Firebase Auth + Firestore + the OAuth PKCE token exchanges — all fixed
+  // Google/Microsoft domains, no per-deployment backend to configure.
+  host_permissions: [
+    'https://oauth2.googleapis.com/*',
+    'https://login.microsoftonline.com/*',
+    'https://identitytoolkit.googleapis.com/*',
+    'https://securetoken.googleapis.com/*',
+    'https://firestore.googleapis.com/*',
+  ],
 })

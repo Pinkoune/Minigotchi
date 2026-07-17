@@ -4,8 +4,11 @@ Une petite extension web ludique qui égaiera vos journées !
 
 Minigotchi est une extension de navigateur (Chrome/Edge, Manifest V3) qui
 héberge un petit Tamagotchi original. Connectez-vous avec Google ou
-Microsoft et retrouvez la progression de votre pet sur tous vos appareils —
-la save vit sur le serveur, le navigateur n'est qu'un cache.
+Microsoft et retrouvez la progression de votre pet sur tous vos appareils.
+
+**Aucun serveur à héberger** : la save vit sur **Firebase** (Firestore),
+`chrome.storage` n'est qu'un cache local. Il suffit de builder l'extension et
+de la charger — pas de backend à lancer, pas de conteneur à faire tourner.
 
 ## Fonctionnalités
 
@@ -23,38 +26,40 @@ la save vit sur le serveur, le navigateur n'est qu'un cache.
   memory, attrape-tout) pour gagner des pièces, boutique (nourriture,
   accessoires cosmétiques, fonds), lignée/cimetière avec héritage,
   saisons visuelles, sons synthétisés (toggle dans les réglages).
-- **Sync multi-appareil** : backend FastAPI source de vérité, concurrence
-  optimiste par `rev` (409 + fusion + re-push), cache local `chrome.storage`
-  pour le hors-ligne, indicateur de statut de sync.
+- **Sync multi-appareil** : Firestore comme source de vérité, concurrence
+  optimiste par `rev` dans une transaction (conflit → fusion + re-push),
+  cache local `chrome.storage` pour le hors-ligne, indicateur de statut.
 
 ## Arborescence
 
 ```
 ├── manifest.config.ts     # manifest MV3 (permissions minimales)
+├── firebase.json          # config Firebase CLI (déploiement des règles)
+├── firestore.rules        # isolation stricte par utilisateur
 ├── src/
 │   ├── popup/             # UI React (écrans + composants)
 │   ├── background/        # service worker : alarms, badge, notifications
-│   ├── game/              # logique PURE, testée sans navigateur
-│   ├── auth/              # OAuth PKCE Google + Microsoft
-│   ├── storage/           # cache chrome.storage + sessions
-│   ├── sync/              # client API + réconciliation local<->serveur
-│   └── shared/            # sons WebAudio, saisons
-├── public/assets/         # icônes/sprites originaux + ATTRIBUTIONS.md
-├── backend/               # API FastAPI (source de vérité de la save)
-└── tests/                 # tests Vitest du moteur de jeu
+│   ├── game/               # logique PURE, testée sans navigateur
+│   ├── auth/               # OAuth PKCE Google + Microsoft -> Firebase Auth
+│   ├── firebase/           # init Firebase (app, auth, firestore)
+│   ├── storage/            # cache chrome.storage (save + dirty flag)
+│   ├── sync/               # réconciliation local <-> Firestore
+│   └── shared/             # sons WebAudio, saisons
+├── public/assets/          # icônes/sprites originaux + ATTRIBUTIONS.md
+└── tests/                  # tests Vitest du moteur de jeu
 ```
 
 ## Prérequis
 
 - Node.js ≥ 20, npm
-- Python ≥ 3.11 (ou Docker) pour le backend
+- Un compte Google (pour créer un projet Firebase — gratuit sur le plan Spark)
 
-## Extension : build & chargement
+## Build & chargement
 
 ```bash
-cp .env.example .env        # renseigner VITE_API_URL et les client IDs OAuth
+cp .env.example .env        # renseigner les client IDs OAuth + la config Firebase
 npm install
-npm run build               # tsc + vite build -> dist/
+npm run build                # tsc + vite build -> dist/
 ```
 
 Puis dans Chrome/Edge : `chrome://extensions` → activer le **mode développeur**
@@ -64,98 +69,92 @@ Mode dev avec rechargement à chaud : `npm run dev` (charger `dist/` de la même
 
 Tests du moteur de jeu : `npm test`.
 
-> Sans configuration OAuth, le bouton « Jouer sans compte » permet de tester
-> tout le jeu avec une progression locale uniquement.
+> Sans configuration Firebase/OAuth, le bouton « Jouer sans compte » permet
+> de tester tout le jeu avec une progression locale uniquement — pratique
+> pour essayer l'extension avant de configurer quoi que ce soit.
 
-## Backend : lancement
+## Configuration Firebase + OAuth (étapes manuelles, une seule fois)
 
-Avec Docker (recommandé) :
+L'extension utilise `chrome.identity.launchWebAuthFlow` avec **PKCE** pour
+dialoguer directement avec Google/Microsoft (aucun secret client embarqué),
+puis passe l'ID token obtenu à **Firebase Auth** (`signInWithCredential`) qui
+le vérifie et ouvre une session. Firestore stocke ensuite la save, protégée
+par des règles qui n'autorisent chaque utilisateur qu'à lire/écrire son
+propre document.
 
-```bash
-cp backend/.env.example backend/.env   # SESSION_SECRET + client IDs
-docker compose up --build
-```
+1. **Créer le projet Firebase** : [console.firebase.google.com](https://console.firebase.google.com)
+   → « Ajouter un projet ». Le plan gratuit **Spark** suffit largement.
 
-Ou en local :
+2. **Activer Firestore** : dans la console du projet → « Firestore Database »
+   → « Créer une base de données » → mode production (les règles ci-dessous
+   verrouillent déjà l'accès). Déployez `firestore.rules` :
+   ```bash
+   npm install -g firebase-tools     # une fois
+   firebase login
+   firebase deploy --only firestore:rules --project <votre-projet>
+   ```
+   (ou collez le contenu de `firestore.rules` directement dans l'onglet
+   « Règles » de la console Firestore).
 
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-uvicorn app.main:app --reload          # http://localhost:8000
-pytest                                  # tests
-```
-
-SQLite est utilisé par défaut (fichier local). Pour Postgres, définissez
-`DATABASE_URL` (voir `backend/.env.example` et `docker-compose.yml`) — aucun
-changement de code n'est nécessaire. L'API est self-hostable derrière un
-reverse proxy.
-
-### Routes
-
-| Route | Description |
-|---|---|
-| `POST /auth/session` | Vérifie l'ID token Google/Microsoft (JWKS) et renvoie un JWT de session |
-| `POST /auth/refresh` | Ré-émet un JWT de session encore valide |
-| `GET /api/save` | Save serveur + `rev` (404 si aucune → le client crée un œuf) |
-| `PUT /api/save` | Écriture avec `base_rev` ; **409 Conflict** + save serveur si `rev` périmé |
-| `GET /health` | Sonde |
-
-Toutes les routes `/api/*` exigent `Authorization: Bearer <jwt>` ; le
-`user_id` est toujours déduit du token, jamais du corps de la requête.
-
-## Configuration OAuth (étapes manuelles)
-
-L'extension utilise `chrome.identity.launchWebAuthFlow` avec **PKCE** — aucun
-secret client n'est embarqué. Le redirect URI est
-`https://<EXTENSION_ID>.chromiumapp.org/`.
-
-1. **Récupérer l'ID d'extension** : après un premier chargement de `dist/`
+3. **Récupérer l'ID d'extension** : après un premier chargement de `dist/`
    dans `chrome://extensions`, copiez l'ID (ex. `abcdefghijklmnopabcdefghijklmnop`).
-   Le redirect URI complet est alors `https://<ID>.chromiumapp.org/`.
+   Le redirect URI OAuth est `https://<EXTENSION_ID>.chromiumapp.org/`.
    ⚠️ L'ID change si vous rechargez l'extension depuis un autre dossier ;
    fixez une clé `key` dans le manifest pour un ID stable si besoin.
 
-2. **Google** ([console.cloud.google.com](https://console.cloud.google.com)) :
-   - Créez un projet → « APIs & Services » → « Credentials » →
-     « Create credentials » → **OAuth client ID** → type **Web application**.
+4. **Google** — le projet Firebase est un projet Google Cloud comme un autre :
+   ([console.cloud.google.com](https://console.cloud.google.com), sélectionnez
+   le même projet que Firebase) :
+   - « APIs & Services » → « Credentials » → « Create credentials » →
+     **OAuth client ID** → type **Web application**.
    - Ajoutez `https://<EXTENSION_ID>.chromiumapp.org/` dans
      **Authorized redirect URIs**.
    - Configurez l'écran de consentement (scopes `openid email profile`).
-   - Copiez le **client ID** dans `.env` (`VITE_GOOGLE_CLIENT_ID`) **et**
-     `backend/.env` (`GOOGLE_CLIENT_ID`).
+   - Copiez le **client ID** dans `.env` (`VITE_GOOGLE_CLIENT_ID`).
+   - Dans la console Firebase → « Authentication » → « Sign-in method » →
+     activez **Google**.
 
-3. **Microsoft** ([portal.azure.com](https://portal.azure.com) → Azure AD /
+5. **Microsoft** ([portal.azure.com](https://portal.azure.com) → Azure AD /
    Entra ID → App registrations) :
    - « New registration », comptes **personnels et professionnels** (common).
    - Plateforme **« Single-page application (SPA) »** (client public PKCE),
      redirect URI `https://<EXTENSION_ID>.chromiumapp.org/`.
    - Copiez l'**Application (client) ID** dans `.env`
-     (`VITE_MICROSOFT_CLIENT_ID`) **et** `backend/.env` (`MICROSOFT_CLIENT_ID`).
+     (`VITE_MICROSOFT_CLIENT_ID`).
+   - Dans la console Firebase → « Authentication » → « Sign-in method » →
+     ajoutez le provider **Microsoft** et renseignez ce même Application ID
+     (Firebase demande aussi un secret client : générez-en un dans Azure AD
+     → « Certificates & secrets », il n'est utilisé que pour satisfaire ce
+     formulaire, pas par le flow PKCE de l'extension).
 
-4. **Backend** : générez un `SESSION_SECRET`
-   (`python -c "import secrets; print(secrets.token_urlsafe(48))"`) dans
-   `backend/.env`. Ne commitez jamais les fichiers `.env`.
+6. **Config web Firebase** : console Firebase → icône ⚙️ → « Paramètres du
+   projet » → onglet « Général » → « Vos applications » → ajoutez une appli
+   **Web** (</> icon) → copiez `apiKey`, `authDomain`, `projectId`, `appId`
+   dans `.env` (`VITE_FIREBASE_*`). Ces valeurs ne sont pas des secrets —
+   l'accès aux données est protégé par `firestore.rules`, pas par leur
+   confidentialité.
 
-5. Rebuildez l'extension (`npm run build`) après toute modification de `.env`
-   (les variables `VITE_*` sont injectées au build, y compris
-   `host_permissions` pour l'URL du backend).
+7. Rebuildez l'extension (`npm run build`) après toute modification de `.env`.
 
 ## Synchronisation : comment ça marche
 
-- La save est un objet **versionné** (`schemaVersion`, `migrate()` côté client)
-  contenant pet, inventaire, pièces, dex, succès, réglages, `lastTick`, `rev`.
+- La save est un objet **versionné** (`schemaVersion`, `migrate()` côté
+  client) contenant pet, inventaire, pièces, dex, succès, réglages,
+  `lastTick`, `rev` — stocké tel quel dans le document Firestore `saves/{uid}`.
 - La décroissance est une **fonction pure du temps écoulé** depuis `lastTick`
   (plafonnée à 12 h pour ne pas tuer le pet après une longue absence) — elle
   n'est jamais appliquée deux fois.
-- Au démarrage : adoption de la save serveur (ou de la plus récente en cas de
-  cache local), décroissance offline, push.
+- Au démarrage : adoption de la save Firestore (ou de la plus récente en cas
+  de cache local), décroissance offline, push.
 - Après chaque action : écriture immédiate dans `chrome.storage.local` puis
-  push **débounced** vers `PUT /api/save`.
-- **409** : re-fetch de la save serveur, ré-application des actions en attente,
-  nouveau PUT — une évolution faite sur un autre appareil n'est jamais écrasée.
-- Hors-ligne : le jeu continue sur le cache (marqué « dirty ») et le service
-  worker re-synchronise au retour du réseau.
+  push **débounced** vers Firestore.
+- **Conflit de `rev`** : la lecture-vérification-écriture se fait dans une
+  transaction Firestore ; en cas d'écart de révision, la save serveur est
+  adoptée, les actions locales en attente sont rejouées par-dessus, puis
+  l'écriture est retentée — une évolution faite sur un autre appareil n'est
+  jamais silencieusement écrasée.
+- Hors-ligne : le jeu continue sur le cache (marqué « dirty ») ; la
+  resynchronisation se fait à la prochaine ouverture du popup.
 
 ## Assets
 
@@ -165,5 +164,4 @@ dans le rendu final, aucun asset sous copyright.
 
 ## Hors scope
 
-Pas de store en ligne, pas de multijoueur, pas de paiement réel. Backend
-volontairement minimal (auth de session + stockage/sync de la save).
+Pas de store en ligne, pas de multijoueur, pas de paiement réel.

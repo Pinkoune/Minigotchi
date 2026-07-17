@@ -3,14 +3,7 @@
 // sends (throttled) notifications when the pet urgently needs care.
 
 import { applyDecay, hasUrgentNeed } from '../game/engine'
-import {
-  getLastNotifiedAt,
-  loadLocalSave,
-  loadSession,
-  setLastNotifiedAt,
-  storeLocalSave,
-} from '../storage'
-import { flushIfDirty } from '../sync'
+import { getLastNotifiedAt, loadLocalSave, setLastNotifiedAt, storeLocalSave } from '../storage'
 
 const TICK_ALARM = 'minigotchi-tick'
 const TICK_MINUTES = 2
@@ -48,9 +41,9 @@ async function tick(): Promise<void> {
     await maybeNotify(next, died, now)
   }
 
-  // Opportunistic flush of offline writes (also runs when the popup pushed
-  // while the API was down).
-  await flushIfDirty(await loadSession())
+  // No network sync from the service worker: Firestore push happens from the
+  // popup (debounced after actions, and once unconditionally on open), which
+  // also covers flushing any writes made while offline.
 }
 
 async function updateBadge(urgent: boolean): Promise<void> {

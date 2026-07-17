@@ -2,10 +2,9 @@ import { create } from 'zustand'
 import type { GameAction, GameEvent, SaveData } from '../game/types'
 import { applyAction, applyDecay } from '../game/engine'
 import { newSave } from '../game/save'
-import type { AuthSession } from '../storage'
-import { loadSession, storeLocalSave } from '../storage'
+import { storeLocalSave } from '../storage'
 import { adoptInitialSave, debounce, pushSave, type SyncStatus } from '../sync'
-import { login as oauthLogin, logout as oauthLogout, type Provider } from '../auth'
+import { login as oauthLogin, logout as oauthLogout, waitForInitialUser, type Provider, type UserProfile } from '../auth'
 import { playEventSound } from '../shared/sound'
 
 export type Screen = 'game' | 'shop' | 'minigames' | 'dex' | 'settings'
@@ -18,7 +17,7 @@ export interface Toast {
 
 interface GameStore {
   ready: boolean
-  session: AuthSession | null
+  profile: UserProfile | null
   save: SaveData | null
   syncStatus: SyncStatus
   screen: Screen
@@ -53,11 +52,11 @@ const EVENT_TEXT: Partial<Record<GameEvent['type'], (e: GameEvent) => string>> =
 
 export const useGame = create<GameStore>((set, get) => {
   const pushToServer = debounce(async () => {
-    const { session, save } = get()
-    if (!session || !save) return
+    const { profile, save } = get()
+    if (!profile || !save) return
     set({ syncStatus: 'syncing' })
     const actions = pendingActions
-    const status = await pushSave(session, save, actions)
+    const status = await pushSave(profile.userId, save, actions)
     // Actions replayed (or persisted) by pushSave are no longer pending.
     pendingActions = pendingActions.slice(actions.length)
     if (status !== 'offline') {
@@ -94,7 +93,7 @@ export const useGame = create<GameStore>((set, get) => {
 
   return {
     ready: false,
-    session: null,
+    profile: null,
     save: null,
     syncStatus: 'local-only',
     screen: 'game',
@@ -104,19 +103,18 @@ export const useGame = create<GameStore>((set, get) => {
     showLogin: true,
 
     init: async () => {
-      // An expired backend token still identifies the user for offline play;
-      // API pushes will simply fail until the next login.
-      const session = await loadSession()
-      const { save, status } = await adoptInitialSave(session, Date.now())
-      set({ ready: true, session, save, syncStatus: status, showLogin: !session })
+      // Waits for Firebase Auth's persisted session to resolve (or null).
+      const profile = await waitForInitialUser()
+      const { save, status } = await adoptInitialSave(profile?.userId ?? null, Date.now())
+      set({ ready: true, profile, save, syncStatus: status, showLogin: !profile })
     },
 
     login: async (provider) => {
       set({ authBusy: true, authError: null })
       try {
-        const session = await oauthLogin(provider)
-        const { save, status } = await adoptInitialSave(session, Date.now())
-        set({ session, save, syncStatus: status, authBusy: false, showLogin: false })
+        const profile = await oauthLogin(provider)
+        const { save, status } = await adoptInitialSave(profile.userId, Date.now())
+        set({ profile, save, syncStatus: status, authBusy: false, showLogin: false })
       } catch (err) {
         set({ authBusy: false, authError: err instanceof Error ? err.message : String(err) })
       }
@@ -124,7 +122,7 @@ export const useGame = create<GameStore>((set, get) => {
 
     logout: async () => {
       await oauthLogout()
-      set({ session: null, syncStatus: 'local-only', showLogin: true, screen: 'game' })
+      set({ profile: null, syncStatus: 'local-only', showLogin: true, screen: 'game' })
     },
 
     playOffline: () => {
@@ -132,13 +130,13 @@ export const useGame = create<GameStore>((set, get) => {
       if (!save) {
         const fresh = newSave(Date.now())
         void storeLocalSave(fresh)
-        set({ save: fresh, syncStatus: 'local-only', session: null })
+        set({ save: fresh, syncStatus: 'local-only', profile: null })
       }
       set({ ready: true, showLogin: false })
     },
 
     dispatch: (action) => {
-      const { save, session } = get()
+      const { save, profile } = get()
       const base = save ?? newSave(Date.now())
       const { save: next, events } = applyAction(base, action, Date.now())
       // Write-through cache first (offline-safe), then debounced server push.
@@ -146,16 +144,16 @@ export const useGame = create<GameStore>((set, get) => {
       pendingActions = [...pendingActions, action].slice(-20)
       set({ save: next })
       emitToasts(events, next.settings.sound)
-      if (session) pushToServer()
+      if (profile) pushToServer()
     },
 
     updateSettings: (partial) => {
-      const { save, session } = get()
+      const { save, profile } = get()
       if (!save) return
       const next = { ...save, settings: { ...save.settings, ...partial } }
       void storeLocalSave(next)
       set({ save: next })
-      if (session) pushToServer()
+      if (profile) pushToServer()
     },
 
     setScreen: (screen) => set({ screen }),
@@ -166,17 +164,17 @@ export const useGame = create<GameStore>((set, get) => {
 /** Re-apply decay every 30s while the popup is open so the UI stays live. */
 export function startPopupTicker(): () => void {
   const interval = setInterval(() => {
-    const { save, session } = useGame.getState()
+    const { save, profile } = useGame.getState()
     if (!save) return
     const { save: next, events } = applyDecay(save, Date.now())
     void storeLocalSave(next)
     useGame.setState({ save: next })
-    if (events.length > 0 && session) void pushSaveQuiet(session, next)
+    if (events.length > 0 && profile) void pushSaveQuiet(profile.userId, next)
   }, 30_000)
   return () => clearInterval(interval)
 }
 
-async function pushSaveQuiet(session: AuthSession, save: SaveData): Promise<void> {
-  const status = await pushSave(session, save, [])
+async function pushSaveQuiet(uid: string, save: SaveData): Promise<void> {
+  const status = await pushSave(uid, save, [])
   useGame.setState({ syncStatus: status })
 }
