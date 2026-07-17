@@ -34,6 +34,7 @@ interface GameStore {
   updateSettings: (partial: Partial<SaveData['settings']>) => void
   setScreen: (screen: Screen) => void
   dismissToast: (id: number) => void
+  openLogin: () => void
 }
 
 let toastSeq = 0
@@ -104,9 +105,24 @@ export const useGame = create<GameStore>((set, get) => {
 
     init: async () => {
       // Waits for Firebase Auth's persisted session to resolve (or null).
-      const profile = await waitForInitialUser()
-      const { save, status } = await adoptInitialSave(profile?.userId ?? null, Date.now())
-      set({ ready: true, profile, save, syncStatus: status, showLogin: !profile })
+      // A missing/invalid Firebase config must never brick the popup: the
+      // game falls back to local-only play (cache-based) in that case.
+      let profile: UserProfile | null = null
+      try {
+        profile = await waitForInitialUser()
+      } catch {
+        profile = null
+      }
+      try {
+        const { save, status } = await adoptInitialSave(profile?.userId ?? null, Date.now())
+        // Only gate on login when there is neither a session nor local
+        // progress: someone playing locally shouldn't re-choose at every open.
+        set({ ready: true, profile, save, syncStatus: status, showLogin: !profile && !save })
+      } catch {
+        const { loadLocalSave } = await import('../storage')
+        const save = await loadLocalSave()
+        set({ ready: true, profile, save, syncStatus: 'offline', showLogin: !profile && !save })
+      }
     },
 
     login: async (provider) => {
@@ -158,6 +174,7 @@ export const useGame = create<GameStore>((set, get) => {
 
     setScreen: (screen) => set({ screen }),
     dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+    openLogin: () => set({ showLogin: true }),
   }
 })
 
