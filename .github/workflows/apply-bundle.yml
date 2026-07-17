@@ -3,8 +3,11 @@ on:
   workflow_dispatch:
     inputs:
       bundle_url:
-        description: 'https://limewire.com/d/HmaI2#fPusk1Sfp0'
+        description: 'URL directe de téléchargement du fichier .bundle'
         required: true
+
+permissions:
+  contents: write
 
 jobs:
   apply-bundle:
