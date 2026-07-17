@@ -35,7 +35,7 @@ interface SceneRefs {
   disposed: boolean
 }
 
-export function Pet3D({ formId, mood, dead, eating, width = 240, height = 190 }: Pet3DProps) {
+export function Pet3D({ formId, mood, dead, eating, width = 230, height = 164 }: Pet3DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<SceneRefs | null>(null)
 
@@ -50,9 +50,9 @@ export function Pet3D({ formId, mood, dead, eating, width = 240, height = 190 }:
     renderer.setSize(width, height, false)
 
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(32, width / height, 0.1, 50)
-    camera.position.set(0.9, 1.5, 4.2)
-    camera.lookAt(0, 0.45, 0)
+    const camera = new THREE.PerspectiveCamera(34, width / height, 0.1, 50)
+    camera.position.set(0.9, 1.4, 4.6)
+    camera.lookAt(0, 0.5, 0)
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xb0a890, 1.6))
     const sun = new THREE.DirectionalLight(0xffffff, 1.8)

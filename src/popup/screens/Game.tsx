@@ -41,15 +41,15 @@ export function GameScreen() {
 
   const isEgg = pet.stage === 'egg'
   const actions: ActionDef[] = [
-    { id: 'feed', label: 'Nourrir', iconSrc: '/assets/icons/action-feed.svg', disabled: isEgg || pet.sleeping, onClick: () => setFeedOpen((v) => !v) },
-    { id: 'play', label: 'Jouer', iconSrc: '/assets/ui/icons/gamepad-black.png', disabled: isEgg || pet.sleeping || pet.stats.energy < 10, onClick: () => dispatch({ type: 'play' }) },
-    { id: 'clean', label: 'Laver', iconSrc: '/assets/icons/action-clean.svg', disabled: isEgg, badge: pet.poops.length > 0, onClick: () => dispatch({ type: 'clean' }) },
+    { id: 'feed', label: 'Nourrir', iconSrc: '/assets/icons/action-feed.svg', color: 'orange', disabled: isEgg || pet.sleeping, onClick: () => setFeedOpen((v) => !v) },
+    { id: 'play', label: 'Jouer', iconSrc: '/assets/ui/icons/gamepad-black.png', color: 'green', disabled: isEgg || pet.sleeping || pet.stats.energy < 10, onClick: () => dispatch({ type: 'play' }) },
+    { id: 'clean', label: 'Laver', iconSrc: '/assets/icons/action-clean.svg', color: 'blue', disabled: isEgg, badge: pet.poops.length > 0, onClick: () => dispatch({ type: 'clean' }) },
     pet.sleeping
-      ? { id: 'wake', label: 'Réveiller', iconSrc: '/assets/icons/action-wake.svg', onClick: () => dispatch({ type: 'wake' }) }
-      : { id: 'sleep', label: 'Dodo', iconSrc: '/assets/icons/action-sleep.svg', disabled: isEgg, onClick: () => dispatch({ type: 'sleep' }) },
-    { id: 'medicine', label: 'Soigner', iconSrc: '/assets/icons/action-medicine.svg', disabled: isEgg || !pet.sick, badge: pet.sick, onClick: () => dispatch({ type: 'medicine' }) },
-    { id: 'scold', label: 'Gronder', iconSrc: '/assets/ui/icons/exclamation-black.png', disabled: isEgg, badge: pet.attentionCall !== null, onClick: () => dispatch({ type: 'scold' }) },
-    { id: 'praise', label: 'Féliciter', iconSrc: '/assets/ui/icons/star-black.png', disabled: isEgg, onClick: () => dispatch({ type: 'praise' }) },
+      ? { id: 'wake', label: 'Réveiller', iconSrc: '/assets/icons/action-wake.svg', color: 'purple', onClick: () => dispatch({ type: 'wake' }) }
+      : { id: 'sleep', label: 'Dodo', iconSrc: '/assets/icons/action-sleep.svg', color: 'purple', disabled: isEgg, onClick: () => dispatch({ type: 'sleep' }) },
+    { id: 'medicine', label: 'Soigner', iconSrc: '/assets/icons/action-medicine.svg', color: 'red', disabled: isEgg || !pet.sick, badge: pet.sick, onClick: () => dispatch({ type: 'medicine' }) },
+    { id: 'scold', label: 'Gronder', iconSrc: '/assets/ui/icons/exclamation-black.png', color: 'grey', disabled: isEgg, badge: pet.attentionCall !== null, onClick: () => dispatch({ type: 'scold' }) },
+    { id: 'praise', label: 'Féliciter', iconSrc: '/assets/ui/icons/star-black.png', color: 'yellow', disabled: isEgg, onClick: () => dispatch({ type: 'praise' }) },
   ]
 
   return (
