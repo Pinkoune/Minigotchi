@@ -1,5 +1,9 @@
 import { useGame } from '../store'
 
+// Microsoft is opt-in: without a client ID configured the button is hidden,
+// so a Google-only (or fully local) setup stays simple.
+const MICROSOFT_ENABLED = Boolean(import.meta.env.VITE_MICROSOFT_CLIENT_ID)
+
 export function LoginScreen() {
   const { login, playOffline, authBusy, authError } = useGame()
   return (
@@ -15,10 +19,12 @@ export function LoginScreen() {
           <img src="/assets/icons/provider-google.svg" alt="" width={18} height={18} />
           Continuer avec Google
         </button>
-        <button className="login-btn" onClick={() => login('microsoft')} disabled={authBusy}>
-          <img src="/assets/icons/provider-microsoft.svg" alt="" width={18} height={18} />
-          Continuer avec Microsoft
-        </button>
+        {MICROSOFT_ENABLED && (
+          <button className="login-btn" onClick={() => login('microsoft')} disabled={authBusy}>
+            <img src="/assets/icons/provider-microsoft.svg" alt="" width={18} height={18} />
+            Continuer avec Microsoft
+          </button>
+        )}
         <button className="login-skip" onClick={playOffline} disabled={authBusy}>
           Jouer sans compte (progression locale)
         </button>

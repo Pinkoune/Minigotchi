@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "package": "npm run build && node scripts/package.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -17,11 +18,13 @@
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0-beta.28",
+    "@types/adm-zip": "^0.5.8",
     "@types/chrome": "^0.0.278",
     "@types/node": "^26.1.1",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
+    "adm-zip": "^0.6.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
     "vitest": "^2.1.4"
