@@ -1,0 +1,25 @@
+name: Apply Claude Bundle
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_url:
+        description: 'https://limewire.com/d/HmaI2#fPusk1Sfp0'
+        required: true
+
+jobs:
+  apply-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download and apply bundle
+        run: |
+          curl -L "${{ github.event.inputs.bundle_url }}" -o claude.bundle
+          git fetch claude.bundle claude/prompt-suivant-sd4kv3:claude/prompt-suivant-sd4kv3
+          
+      - name: Push the new branch
+        run: |
+          git push origin claude/prompt-suivant-sd4kv3
