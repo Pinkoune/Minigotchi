@@ -2,7 +2,7 @@ import { useGame } from '../store'
 import { SyncIndicator } from '../components/Hud'
 
 export function SettingsScreen() {
-  const { save, session, syncStatus, updateSettings, logout } = useGame()
+  const { save, profile, syncStatus, updateSettings, logout, openLogin } = useGame()
   if (!save) return null
 
   return (
@@ -27,13 +27,13 @@ export function SettingsScreen() {
       </label>
 
       <h3>Compte</h3>
-      {session ? (
+      {profile ? (
         <div className="account">
-          {session.avatar && <img src={session.avatar} alt="" width={32} height={32} className="avatar" />}
+          {profile.avatar && <img src={profile.avatar} alt="" width={32} height={32} className="avatar" />}
           <div>
-            <strong>{session.name}</strong>
-            <span>{session.email}</span>
-            <span className="account-provider">via {session.provider === 'google' ? 'Google' : 'Microsoft'}</span>
+            <strong>{profile.name}</strong>
+            <span>{profile.email}</span>
+            <span className="account-provider">via {profile.provider === 'google' ? 'Google' : 'Microsoft'}</span>
           </div>
           <SyncIndicator status={syncStatus} />
           <button className="danger" onClick={logout}>
@@ -41,10 +41,15 @@ export function SettingsScreen() {
           </button>
         </div>
       ) : (
-        <p className="account-hint">
-          Non connecté — la progression reste sur cet appareil. Déconnectez-vous et reconnectez-vous
-          depuis l'écran d'accueil pour la rattacher à un compte.
-        </p>
+        <div className="account">
+          <p className="account-hint">
+            Non connecté — la progression reste sur cet appareil. Connectez-vous pour la
+            rattacher à un compte et la retrouver partout.
+          </p>
+          <button className="primary" onClick={openLogin}>
+            Se connecter
+          </button>
+        </div>
       )}
 
       <p className="settings-footer">Minigotchi v0.1.0</p>

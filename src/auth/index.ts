@@ -1,9 +1,23 @@
+import {
+  GoogleAuthProvider,
+  OAuthProvider,
+  onAuthStateChanged,
+  signInWithCredential,
+  signOut,
+  type User,
+} from 'firebase/auth'
 import { challengeFromVerifier, randomState, randomVerifier } from './pkce'
-import type { AuthSession } from '../storage'
-import { storeSession, clearSession } from '../storage'
-import { postSession } from '../sync/api'
+import { firebaseAuth } from '../firebase/config'
 
 export type Provider = 'google' | 'microsoft'
+
+export interface UserProfile {
+  userId: string // Firebase uid
+  provider: Provider
+  email: string
+  name: string
+  avatar: string | null
+}
 
 interface ProviderConfig {
   authEndpoint: string
@@ -33,17 +47,23 @@ export class AuthCancelledError extends Error {
   }
 }
 
-function decodeJwtPayload(jwt: string): Record<string, unknown> {
-  const payload = jwt.split('.')[1]
-  const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
-  return JSON.parse(json) as Record<string, unknown>
+function toProfile(user: User, provider: Provider): UserProfile {
+  return {
+    userId: user.uid,
+    provider,
+    email: user.email ?? '',
+    name: user.displayName ?? user.email ?? 'Joueur',
+    avatar: user.photoURL,
+  }
 }
 
 /**
- * Full OAuth 2.0 authorization-code + PKCE flow via launchWebAuthFlow.
- * Exchanges the provider ID token for a backend session JWT.
+ * Full OAuth 2.0 authorization-code + PKCE flow via launchWebAuthFlow,
+ * followed by handing the provider ID token to Firebase Auth so it becomes
+ * our session (Firebase verifies it against the provider's own keys and
+ * mints a Firebase user + auto-refreshing ID token — no backend needed).
  */
-export async function login(provider: Provider): Promise<AuthSession> {
+export async function login(provider: Provider): Promise<UserProfile> {
   const cfg = PROVIDERS[provider]
   if (!cfg.clientId) {
     throw new Error(
@@ -99,27 +119,29 @@ export async function login(provider: Provider): Promise<AuthSession> {
   const tokens = (await tokenRes.json()) as { id_token?: string }
   if (!tokens.id_token) throw new Error('Pas de id_token dans la réponse du provider')
 
-  // The backend verifies the ID token against the provider JWKS and issues
-  // our own session JWT — /api/* never depends on provider token lifetime.
-  const backend = await postSession(provider, tokens.id_token)
-
-  const claims = decodeJwtPayload(tokens.id_token)
-  const session: AuthSession = {
-    userId: backend.user_id,
-    provider,
-    email: (claims.email as string) ?? '',
-    name: (claims.name as string) ?? (claims.email as string) ?? 'Joueur',
-    avatar: (claims.picture as string | undefined) ?? null,
-    backendToken: backend.token,
-    backendTokenExp: backend.expires_at * 1000,
-  }
-  await storeSession(session)
-  return session
+  const credential =
+    provider === 'google'
+      ? GoogleAuthProvider.credential(tokens.id_token)
+      : new OAuthProvider('microsoft.com').credential({ idToken: tokens.id_token })
+  const userCred = await signInWithCredential(firebaseAuth(), credential)
+  return toProfile(userCred.user, provider)
 }
 
 export async function logout(): Promise<void> {
-  await clearSession()
+  await signOut(firebaseAuth())
 }
 
-export const isSessionExpired = (session: AuthSession, now = Date.now()): boolean =>
-  now >= session.backendTokenExp
+/** Resolves once Firebase Auth's persisted session has loaded (or null). */
+export function waitForInitialUser(): Promise<UserProfile | null> {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(firebaseAuth(), (user) => {
+      unsubscribe()
+      resolve(user ? toProfile(user, guessProvider(user)) : null)
+    })
+  })
+}
+
+function guessProvider(user: User): Provider {
+  const id = user.providerData[0]?.providerId ?? ''
+  return id.includes('microsoft') ? 'microsoft' : 'google'
+}

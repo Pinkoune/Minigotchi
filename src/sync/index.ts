@@ -1,9 +1,8 @@
 import type { GameAction, SaveData } from '../game/types'
 import { applyAction, applyDecay } from '../game/engine'
 import { migrate } from '../game/save'
-import type { AuthSession } from '../storage'
 import { isDirty, loadLocalSave, setDirty, storeLocalSave } from '../storage'
-import { ConflictError, getSave, putSave } from './api'
+import { ConflictError, getSave, putSave } from './firestore'
 
 export type SyncStatus =
   | 'local-only' // not signed in: cache only
@@ -13,17 +12,17 @@ export type SyncStatus =
   | 'conflict-resolved'
 
 /**
- * Initial reconciliation between the local cache and the server save.
- * The server is the source of truth: on ambiguity it wins. Offline decay is
+ * Initial reconciliation between the local cache and the Firestore save.
+ * Firestore is the source of truth: on ambiguity it wins. Offline decay is
  * applied exactly once, from the adopted save's own lastTick.
  */
 export async function adoptInitialSave(
-  session: AuthSession | null,
+  uid: string | null,
   now: number,
 ): Promise<{ save: SaveData | null; status: SyncStatus }> {
   const local = await loadLocalSave()
 
-  if (!session) {
+  if (!uid) {
     if (!local) return { save: null, status: 'local-only' }
     const { save } = applyDecay(local, now)
     await storeLocalSave(save)
@@ -32,9 +31,9 @@ export async function adoptInitialSave(
 
   let server: Awaited<ReturnType<typeof getSave>>
   try {
-    server = await getSave(session.backendToken)
+    server = await getSave(uid)
   } catch {
-    // API unreachable: keep playing on the cache, flag for later flush.
+    // Firestore unreachable: keep playing on the cache, flag for later flush.
     if (!local) return { save: null, status: 'offline' }
     const { save } = applyDecay(local, now)
     await storeLocalSave(save)
@@ -52,31 +51,31 @@ export async function adoptInitialSave(
   } else if (server) {
     adopted = migrate(server.save)
   } else if (local) {
-    adopted = local // fresh account on server: local progress is pushed below
+    adopted = local // fresh account server-side: local progress is pushed below
   }
 
   if (!adopted) return { save: null, status: 'synced' }
 
-  adopted = { ...adopted, userId: session.userId }
+  adopted = { ...adopted, userId: uid }
   const { save } = applyDecay(adopted, now)
   await storeLocalSave(save)
-  const status = await pushSave(session, save, [])
+  const status = await pushSave(uid, save, [])
   return { save, status }
 }
 
 /**
- * Push the save to the server. On 409 the server save is adopted, decayed
- * from its own lastTick, the still-pending user actions are replayed on top,
- * and the PUT is retried once — a change made on another device is never
- * silently overwritten.
+ * Push the save to Firestore. On a rev conflict the server save is adopted,
+ * decayed from its own lastTick, the still-pending user actions are replayed
+ * on top, and the write is retried once — a change made on another device is
+ * never silently overwritten.
  */
 export async function pushSave(
-  session: AuthSession,
+  uid: string,
   save: SaveData,
   pendingActions: GameAction[],
 ): Promise<SyncStatus> {
   try {
-    const res = await putSave(session.backendToken, save, save.rev)
+    const res = await putSave(uid, save, save.rev)
     await storeLocalSave({ ...save, rev: res.rev })
     await setDirty(false)
     return 'synced'
@@ -89,7 +88,7 @@ export async function pushSave(
         merged = applyAction(merged, action, now).save
       }
       try {
-        const res = await putSave(session.backendToken, merged, merged.rev)
+        const res = await putSave(uid, merged, merged.rev)
         await storeLocalSave({ ...merged, rev: res.rev })
         await setDirty(false)
         return 'conflict-resolved'
@@ -104,13 +103,13 @@ export async function pushSave(
   }
 }
 
-/** Flush the cache to the server if it was written while offline. */
-export async function flushIfDirty(session: AuthSession | null): Promise<void> {
-  if (!session || Date.now() >= session.backendTokenExp) return
+/** Flush the cache to Firestore if it was written while offline. */
+export async function flushIfDirty(uid: string | null): Promise<void> {
+  if (!uid) return
   if (!(await isDirty())) return
   const local = await loadLocalSave()
   if (!local) return
-  await pushSave(session, local, [])
+  await pushSave(uid, local, [])
 }
 
 /** Debounce helper for the push-after-action pattern. */

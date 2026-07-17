@@ -1,8 +1,7 @@
 import { useGame } from '../store'
 import { FORMS } from '../../game/evolution'
 import { ACHIEVEMENTS } from '../../game/achievements'
-import { PetSprite } from '../components/Pet'
-import { newEgg } from '../../game/save'
+import { animalPreviewUrl } from '../petAnimals'
 
 const STAGE_ORDER = ['egg', 'baby', 'child', 'teen', 'adult', 'senior'] as const
 
@@ -16,12 +15,13 @@ export function DexScreen() {
       <div className="dex-grid">
         {STAGE_ORDER.flatMap((stage) => FORMS.filter((f) => f.stage === stage)).map((form) => {
           const unlocked = save.dex.includes(form.id) || form.id === 'egg'
+          const preview = form.id === 'egg' ? '/assets/icons/egg.svg' : animalPreviewUrl(form.id)
           return (
             <div key={form.id} className={`dex-entry${unlocked ? '' : ' dex-locked'}`} title={unlocked ? form.description : '???'}>
-              {unlocked ? (
-                <PetSprite pet={{ ...newEgg(form.name, 0), formId: form.id, stage: form.stage }} accessory={null} size={54} />
+              {unlocked && preview ? (
+                <img src={preview} alt={form.name} width={48} height={48} className="dex-preview" />
               ) : (
-                <span className="dex-unknown">?</span>
+                <img src="/assets/ui/icons/question-black.png" alt="?" width={30} height={30} className="dex-unknown-icon" />
               )}
               <span>{unlocked ? form.name : '???'}</span>
             </div>
@@ -35,7 +35,12 @@ export function DexScreen() {
           const done = save.achievements.includes(a.id)
           return (
             <li key={a.id} className={done ? 'ach-done' : 'ach-todo'}>
-              <img src={`/assets/icons/${done ? 'trophy' : 'trophy-locked'}.svg`} alt="" width={18} height={18} />
+              <img
+                src={`/assets/ui/icons/${done ? 'trophy' : 'locked'}-black.png`}
+                alt=""
+                width={20}
+                height={20}
+              />
               <div>
                 <strong>{a.name}</strong>
                 <span>{a.description}</span>

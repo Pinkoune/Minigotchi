@@ -3,11 +3,4 @@ dist/
 .env
 .env.local
 *.local
-
-# Backend
-backend/.venv/
-backend/**/__pycache__/
-backend/*.db
-backend/.pytest_cache/
-__pycache__/
-.pytest_cache/
+minigotchi-extension.zip

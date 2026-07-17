@@ -9,12 +9,13 @@ import { DexScreen } from './screens/Dex'
 import { SettingsScreen } from './screens/Settings'
 import { CoinCounter, SyncIndicator, Toasts } from './components/Hud'
 
+// Kenney "Game Icons" (CC0) for the bottom navigation.
 const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: 'game', label: 'Pet', icon: 'home' },
-  { id: 'shop', label: 'Boutique', icon: 'shop' },
-  { id: 'minigames', label: 'Jeux', icon: 'games' },
-  { id: 'dex', label: 'Dex', icon: 'dex' },
-  { id: 'settings', label: 'Réglages', icon: 'settings' },
+  { id: 'shop', label: 'Boutique', icon: 'shoppingCart' },
+  { id: 'minigames', label: 'Jeux', icon: 'gamepad' },
+  { id: 'dex', label: 'Dex', icon: 'menuList' },
+  { id: 'settings', label: 'Réglages', icon: 'gear' },
 ]
 
 export default function App() {
@@ -71,17 +72,28 @@ export default function App() {
 
       {!noLivingPet && (
         <nav className="bottomnav">
-          {NAV.map((n) => (
-            <button
-              key={n.id}
-              className={screen === n.id ? 'nav-active' : ''}
-              onClick={() => setScreen(n.id)}
-              title={n.label}
-            >
-              <img src={`/assets/icons/nav-${n.icon}.svg`} alt={n.label} width={20} height={20} />
-              <span>{n.label}</span>
-            </button>
-          ))}
+          {NAV.map((n) => {
+            const active = screen === n.id
+            return (
+              <button
+                key={n.id}
+                className={active ? 'nav-active' : ''}
+                onClick={() => setScreen(n.id)}
+                title={n.label}
+              >
+                <span className="nav-chip">
+                  <img
+                    src={`/assets/ui/icons/${n.icon}-${active ? 'white' : 'black'}.png`}
+                    alt={n.label}
+                    width={18}
+                    height={18}
+                    className="nav-icon"
+                  />
+                </span>
+                <span>{n.label}</span>
+              </button>
+            )
+          })}
         </nav>
       )}
       <Toasts />
