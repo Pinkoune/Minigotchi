@@ -6,7 +6,7 @@ import {
   isNightAt,
 } from '../src/game/engine'
 import { newEgg, newSave, migrate, SCHEMA_VERSION } from '../src/game/save'
-import { MAX_OFFLINE_DECAY_MS, NEGLECT_DEATH_MISTAKES, STAGE_DURATION } from '../src/game/config'
+import { NEGLECT_DEATH_MISTAKES, STAGE_DURATION } from '../src/game/config'
 import type { SaveData } from '../src/game/types'
 
 const HOUR = 3_600_000

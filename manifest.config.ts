@@ -13,15 +13,15 @@ export default defineManifest({
   action: {
     default_popup: 'index.html',
     default_icon: {
-      16: 'public/assets/icons/app-16.png',
-      48: 'public/assets/icons/app-48.png',
-      128: 'public/assets/icons/app-128.png',
+      16: 'assets/icons/app-16.png',
+      48: 'assets/icons/app-48.png',
+      128: 'assets/icons/app-128.png',
     },
   },
   icons: {
-    16: 'public/assets/icons/app-16.png',
-    48: 'public/assets/icons/app-48.png',
-    128: 'public/assets/icons/app-128.png',
+    16: 'assets/icons/app-16.png',
+    48: 'assets/icons/app-48.png',
+    128: 'assets/icons/app-128.png',
   },
   background: {
     service_worker: 'src/background/index.ts',
