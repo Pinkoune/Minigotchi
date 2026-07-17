@@ -25,4 +25,4 @@ jobs:
           
       - name: Push the new branch
         run: |
-          git push origin claude/prompt-suivant-sd4kv3
+          git push origin claude/prompt-suivant-sd4kv3 --force
