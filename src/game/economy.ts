@@ -58,9 +58,14 @@ export const SHOP_ITEMS: ShopItem[] = [
 export const shopItemById = (id: string): ShopItem | undefined =>
   SHOP_ITEMS.find((i) => i.id === id)
 
-/** Coin rewards for the mini-games, by outcome. */
+/**
+ * Coin rewards for the mini-games, by outcome. Only the first
+ * MINIGAME_DAILY_REWARDED_PLAYS plays of each game pay out per day (see
+ * engine.ts), so these are tuned assuming ~3 rewarded rounds/day/game — a
+ * full day of play nets roughly one mid-priced shop item, not the whole shop.
+ */
 export const MINIGAME_REWARDS = {
-  rps: { win: 8, draw: 2, lose: 0 },
-  memory: { perfect: 20, good: 12, ok: 6 },
-  catch: (score: number): number => Math.min(25, Math.floor(score / 2)),
+  rps: { win: 4, draw: 1, lose: 0 },
+  memory: { perfect: 12, good: 8, ok: 4 },
+  catch: (score: number): number => Math.min(15, Math.floor(score / 3)),
 } as const

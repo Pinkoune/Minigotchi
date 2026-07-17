@@ -1,8 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGame } from '../store'
 import { MINIGAME_REWARDS } from '../../game/economy'
+import { remainingRewardedPlays } from '../../game/engine'
+import type { MinigameId } from '../../game/types'
 
-type Game = 'rps' | 'memory' | 'catch'
+type Game = MinigameId
+
+function PlaysLeftBadge({ game }: { game: Game }) {
+  const save = useGame((s) => s.save)
+  if (!save) return null
+  const left = remainingRewardedPlays(save, game, Date.now())
+  return (
+    <span className="mg-plays-left">
+      {left > 0 ? `${left} récompense${left > 1 ? 's' : ''} aujourd’hui` : 'Pour le fun (déjà récompensé)'}
+    </span>
+  )
+}
 
 export function MiniGamesScreen() {
   const [game, setGame] = useState<Game | null>(null)
@@ -15,15 +28,24 @@ export function MiniGamesScreen() {
       <p className="minigames-sub">Gagnez des pièces pour gâter votre Minigotchi.</p>
       <button className="mg-card" onClick={() => setGame('rps')}>
         <img src="/assets/icons/mg-rps.svg" alt="" width={32} height={32} />
-        <span>Pierre-feuille-ciseaux</span>
+        <span className="mg-card-text">
+          Pierre-feuille-ciseaux
+          <PlaysLeftBadge game="rps" />
+        </span>
       </button>
       <button className="mg-card" onClick={() => setGame('memory')}>
         <img src="/assets/icons/mg-memory.svg" alt="" width={32} height={32} />
-        <span>Memory</span>
+        <span className="mg-card-text">
+          Memory
+          <PlaysLeftBadge game="memory" />
+        </span>
       </button>
       <button className="mg-card" onClick={() => setGame('catch')}>
         <img src="/assets/icons/mg-catch.svg" alt="" width={32} height={32} />
-        <span>Attrape-tout !</span>
+        <span className="mg-card-text">
+          Attrape-tout !
+          <PlaysLeftBadge game="catch" />
+        </span>
       </button>
     </div>
   )

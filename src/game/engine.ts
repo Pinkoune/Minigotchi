@@ -2,6 +2,7 @@ import type {
   ActionResult,
   GameAction,
   GameEvent,
+  MinigameId,
   PetState,
   Rng,
   SaveData,
@@ -11,6 +12,7 @@ import {
   FALSE_CALL_CHANCE_PER_HOUR,
   HERITAGE_COINS,
   MAX_OFFLINE_DECAY_MS,
+  MINIGAME_DAILY_REWARDED_PLAYS,
   NEGLECT_DEATH_MISTAKES,
   NIGHT_END_HOUR,
   NIGHT_START_HOUR,
@@ -251,9 +253,22 @@ export function applyAction(save: SaveData, action: GameAction, now: number, rng
     return { save: save2, events }
   }
   if (action.type === 'earnCoins') {
-    const amount = Math.max(0, Math.floor(action.amount))
-    events.push({ type: 'coins', amount })
-    const save2 = collectAchievements({ ...current, coins: current.coins + amount }, events)
+    const { source } = action
+    const today = dayKey(now)
+    const state = current.minigamePlays[source]
+    const playsToday = state.day === today ? state.count : 0
+    const rewarded = playsToday < MINIGAME_DAILY_REWARDED_PLAYS
+    const amount = rewarded ? Math.max(0, Math.floor(action.amount)) : 0
+    const minigamePlays = {
+      ...current.minigamePlays,
+      [source]: { day: today, count: playsToday + 1 },
+    }
+    if (rewarded) events.push({ type: 'coins', amount })
+    else events.push({ type: 'refused', reason: 'Plus de pièces à gagner ici aujourd’hui — revenez demain !' })
+    const save2 = collectAchievements(
+      { ...current, coins: current.coins + amount, minigamePlays },
+      events,
+    )
     return { save: save2, events }
   }
   if (action.type === 'buy') {
@@ -465,4 +480,11 @@ export function hasUrgentNeed(save: SaveData): boolean {
     pet.stats.health < 30 ||
     pet.poops.length >= 3
   )
+}
+
+/** How many more plays of this mini-game will still earn coins today. */
+export function remainingRewardedPlays(save: SaveData, source: MinigameId, now: number): number {
+  const state = save.minigamePlays[source]
+  const playsToday = state.day === dayKey(now) ? state.count : 0
+  return Math.max(0, MINIGAME_DAILY_REWARDED_PLAYS - playsToday)
 }

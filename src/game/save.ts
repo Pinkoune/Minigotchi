@@ -1,7 +1,7 @@
-import type { PetState, SaveData } from './types'
+import type { MinigamePlayState, PetState, SaveData } from './types'
 import { freshStats } from './stats'
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 export function newEgg(name: string, now: number): PetState {
   return {
@@ -29,6 +29,11 @@ export function newEgg(name: string, now: number): PetState {
   }
 }
 
+const freshMinigamePlays = (): SaveData['minigamePlays'] => {
+  const empty: MinigamePlayState = { day: null, count: 0 }
+  return { rps: { ...empty }, memory: { ...empty }, catch: { ...empty } }
+}
+
 export function newSave(now: number, userId: string | null = null): SaveData {
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -41,6 +46,7 @@ export function newSave(now: number, userId: string | null = null): SaveData {
     achievements: [],
     lineage: [],
     streak: { lastCareDay: null, count: 0 },
+    minigamePlays: freshMinigamePlays(),
     settings: { sound: true, notifications: true },
     lastTick: now,
     rev: 0,
@@ -65,8 +71,11 @@ export function migrate(raw: unknown): SaveData {
   }
 
   let migrated: SaveData = save as SaveData
-  // Example shape for future migrations:
-  // if (version < 2) migrated = { ...migrated, newField: defaultValue, schemaVersion: 2 }
+  if (version < 2) {
+    // Daily mini-game reward cap introduced: saves from before it existed
+    // start with a clean slate rather than being treated as already capped.
+    migrated = { ...migrated, minigamePlays: freshMinigamePlays() }
+  }
   migrated = { ...migrated, schemaVersion: SCHEMA_VERSION }
   return migrated
 }

@@ -70,6 +70,14 @@ export interface StreakState {
   count: number
 }
 
+export type MinigameId = 'rps' | 'memory' | 'catch'
+
+export interface MinigamePlayState {
+  /** YYYY-MM-DD of `count`'s day; a different day resets the count to 0. */
+  day: string | null
+  count: number
+}
+
 export interface Settings {
   sound: boolean
   notifications: boolean
@@ -87,6 +95,8 @@ export interface SaveData {
   achievements: string[]
   lineage: LineageEntry[]
   streak: StreakState
+  /** Daily play counters per mini-game, gating coin rewards (not the plays themselves). */
+  minigamePlays: Record<MinigameId, MinigamePlayState>
   settings: Settings
   /** timestamp of the last simulation step */
   lastTick: number
@@ -105,7 +115,7 @@ export type GameAction =
   | { type: 'praise' }
   | { type: 'hatch'; name: string }
   | { type: 'restart'; name: string }
-  | { type: 'earnCoins'; amount: number; source: string }
+  | { type: 'earnCoins'; amount: number; source: MinigameId }
   | { type: 'buy'; itemId: string }
   | { type: 'equip'; slot: 'accessory' | 'background'; itemId: string | null }
 

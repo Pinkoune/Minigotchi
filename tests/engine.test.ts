@@ -6,7 +6,7 @@ import {
   isNightAt,
 } from '../src/game/engine'
 import { newEgg, newSave, migrate, SCHEMA_VERSION } from '../src/game/save'
-import { NEGLECT_DEATH_MISTAKES, STAGE_DURATION } from '../src/game/config'
+import { MINIGAME_DAILY_REWARDED_PLAYS, NEGLECT_DEATH_MISTAKES, STAGE_DURATION } from '../src/game/config'
 import type { SaveData } from '../src/game/types'
 
 const HOUR = 3_600_000
@@ -253,6 +253,32 @@ describe('economy', () => {
     const { save: out } = applyAction(save, { type: 'earnCoins', amount: 10, source: 'rps' }, DAY_T0, noLuck)
     expect(out.coins).toBe(save.coins + 10)
   })
+
+  it('caps rewarded mini-game plays per day, independently per game', () => {
+    let save = babySave()
+    for (let i = 0; i < MINIGAME_DAILY_REWARDED_PLAYS; i++) {
+      save = applyAction(save, { type: 'earnCoins', amount: 10, source: 'rps' }, DAY_T0, noLuck).save
+    }
+    const before = save.coins
+    const { save: out, events } = applyAction(save, { type: 'earnCoins', amount: 10, source: 'rps' }, DAY_T0, noLuck)
+    expect(out.coins).toBe(before) // no more reward today
+    expect(events.some((e) => e.type === 'refused')).toBe(true)
+
+    // A different mini-game has its own independent daily allowance.
+    const { save: memOut } = applyAction(out, { type: 'earnCoins', amount: 12, source: 'memory' }, DAY_T0, noLuck)
+    expect(memOut.coins).toBe(before + 12)
+  })
+
+  it('resets the mini-game daily allowance on a new day', () => {
+    let save = babySave()
+    for (let i = 0; i < MINIGAME_DAILY_REWARDED_PLAYS; i++) {
+      save = applyAction(save, { type: 'earnCoins', amount: 10, source: 'rps' }, DAY_T0, noLuck).save
+    }
+    const capped = applyAction(save, { type: 'earnCoins', amount: 10, source: 'rps' }, DAY_T0, noLuck).save
+    const before = capped.coins
+    const nextDay = applyAction(capped, { type: 'earnCoins', amount: 10, source: 'rps' }, DAY_T0 + 25 * HOUR, noLuck).save
+    expect(nextDay.coins).toBe(before + 10)
+  })
 })
 
 describe('misc', () => {
@@ -272,5 +298,12 @@ describe('misc', () => {
     const save = newSave(DAY_T0)
     const migrated = migrate({ ...save, schemaVersion: 0 })
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+  })
+
+  it('migrate backfills minigamePlays for pre-cap saves', () => {
+    const old = newSave(DAY_T0) as Partial<SaveData>
+    delete old.minigamePlays
+    const migrated = migrate({ ...old, schemaVersion: 1 })
+    expect(migrated.minigamePlays.rps).toEqual({ day: null, count: 0 })
   })
 })
