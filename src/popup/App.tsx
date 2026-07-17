@@ -8,6 +8,7 @@ import { MiniGamesScreen } from './screens/MiniGames'
 import { DexScreen } from './screens/Dex'
 import { SettingsScreen } from './screens/Settings'
 import { CoinCounter, SyncIndicator, Toasts } from './components/Hud'
+import { useUiSound } from './useUiSound'
 
 // Kenney "Game Icons" (CC0) for the bottom navigation.
 const NAV: { id: Screen; label: string; icon: string }[] = [
@@ -20,6 +21,7 @@ const NAV: { id: Screen; label: string; icon: string }[] = [
 
 export default function App() {
   const { ready, save, screen, setScreen, syncStatus, init, showLogin } = useGame()
+  const ui = useUiSound()
 
   useEffect(() => {
     void init()
@@ -78,7 +80,10 @@ export default function App() {
               <button
                 key={n.id}
                 className={active ? 'nav-active' : ''}
-                onClick={() => setScreen(n.id)}
+                onClick={() => {
+                  if (!active) ui.click()
+                  setScreen(n.id)
+                }}
                 title={n.label}
               >
                 <span className="nav-chip">

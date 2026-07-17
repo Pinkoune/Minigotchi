@@ -1,9 +1,34 @@
-// Tiny WebAudio synth: original chiptune-style blips, no audio files needed
-// (keeps the extension fully offline and asset-license-free for sound).
+// Real UI sounds from Kenney's "Interface Sounds" pack (CC0 — see
+// public/assets/ATTRIBUTIONS.md). Samples are fetched lazily and decoded
+// into WebAudio buffers so rapid retriggers overlap cleanly. Popup-only:
+// the service worker never plays audio.
 
 import type { GameEvent } from '../game/types'
 
+const SOUND_FILES = {
+  click: 'click_001',
+  play: 'select_001',
+  praised: 'select_005',
+  fed: 'confirmation_001',
+  healed: 'confirmation_002',
+  coins: 'confirmation_003',
+  evolved: 'glass_001',
+  achievement: 'glass_006',
+  sick: 'error_001',
+  refused: 'error_002',
+  died: 'error_008',
+  woke: 'maximize_001',
+  slept: 'minimize_001',
+  cleaned: 'drop_001',
+  toggle: 'switch_001',
+  scold: 'scratch_001',
+} as const
+
+type SoundName = keyof typeof SOUND_FILES
+
 let ctx: AudioContext | null = null
+const buffers = new Map<SoundName, AudioBuffer>()
+const loading = new Map<SoundName, Promise<AudioBuffer | null>>()
 
 function audioCtx(): AudioContext | null {
   try {
@@ -14,68 +39,92 @@ function audioCtx(): AudioContext | null {
   }
 }
 
-function blip(freqs: number[], duration = 0.09, type: OscillatorType = 'square', volume = 0.04): void {
+function assetUrl(file: string): string {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
+      return chrome.runtime.getURL(`assets/sounds/${file}.ogg`)
+    }
+  } catch {
+    /* not in an extension context (e.g. tests) */
+  }
+  return `/assets/sounds/${file}.ogg`
+}
+
+function load(name: SoundName): Promise<AudioBuffer | null> {
+  const ac = audioCtx()
+  if (!ac) return Promise.resolve(null)
+  const cached = buffers.get(name)
+  if (cached) return Promise.resolve(cached)
+  const inflight = loading.get(name)
+  if (inflight) return inflight
+  const p = (async () => {
+    try {
+      const res = await fetch(assetUrl(SOUND_FILES[name]))
+      const arr = await res.arrayBuffer()
+      const buf = await ac.decodeAudioData(arr)
+      buffers.set(name, buf)
+      return buf
+    } catch {
+      return null
+    }
+  })()
+  loading.set(name, p)
+  return p
+}
+
+async function play(name: SoundName, volume: number): Promise<void> {
   const ac = audioCtx()
   if (!ac) return
-  let t = ac.currentTime
-  for (const f of freqs) {
-    const osc = ac.createOscillator()
-    const gain = ac.createGain()
-    osc.type = type
-    osc.frequency.value = f
-    gain.gain.setValueAtTime(volume, t)
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration)
-    osc.connect(gain).connect(ac.destination)
-    osc.start(t)
-    osc.stop(t + duration)
-    t += duration * 0.9
+  // Autoplay policies suspend the context until a user gesture; resume on play.
+  if (ac.state === 'suspended') {
+    try {
+      await ac.resume()
+    } catch {
+      /* ignore */
+    }
   }
+  const buf = await load(name)
+  if (!buf) return
+  const src = ac.createBufferSource()
+  const gain = ac.createGain()
+  gain.gain.value = volume
+  src.buffer = buf
+  src.connect(gain).connect(ac.destination)
+  src.start()
+}
+
+const EVENT_SOUND: Partial<Record<GameEvent['type'], SoundName>> = {
+  fed: 'fed',
+  played: 'play',
+  cleaned: 'cleaned',
+  healed: 'healed',
+  slept: 'slept',
+  woke: 'woke',
+  evolved: 'evolved',
+  hatched: 'evolved',
+  coins: 'coins',
+  bought: 'coins',
+  streak: 'coins',
+  achievement: 'achievement',
+  refused: 'refused',
+  scolded: 'scold',
+  praised: 'praised',
+  died: 'died',
+  gotSick: 'sick',
+  pooped: 'sick',
 }
 
 export function playEventSound(type: GameEvent['type']): void {
-  switch (type) {
-    case 'fed':
-      blip([440, 550])
-      break
-    case 'played':
-      blip([523, 659, 784])
-      break
-    case 'cleaned':
-      blip([700, 900], 0.07, 'sine')
-      break
-    case 'healed':
-      blip([392, 523, 659], 0.12, 'triangle')
-      break
-    case 'slept':
-      blip([330, 262], 0.15, 'sine')
-      break
-    case 'woke':
-      blip([262, 330, 392], 0.08, 'sine')
-      break
-    case 'evolved':
-    case 'hatched':
-      blip([523, 659, 784, 1046], 0.14, 'triangle', 0.05)
-      break
-    case 'coins':
-    case 'streak':
-    case 'bought':
-      blip([880, 1175], 0.06)
-      break
-    case 'achievement':
-      blip([659, 784, 988, 1319], 0.12, 'triangle', 0.05)
-      break
-    case 'refused':
-    case 'scolded':
-      blip([220, 180], 0.1, 'sawtooth', 0.03)
-      break
-    case 'died':
-      blip([392, 330, 262, 196], 0.25, 'triangle', 0.05)
-      break
-    case 'gotSick':
-    case 'pooped':
-      blip([260, 200], 0.12, 'sawtooth', 0.03)
-      break
-    default:
-      break
-  }
+  const name = EVENT_SOUND[type]
+  if (name) void play(name, 0.55)
+}
+
+/** Generic UI click, used on navigation and menu buttons. */
+export function playClick(): void {
+  void play('click', 0.35)
+}
+
+/** Confirmation blip when the user flips a setting on. */
+export function playToggle(): void {
+  void play('toggle', 0.45)
 }

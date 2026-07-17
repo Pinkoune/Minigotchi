@@ -3,6 +3,7 @@ import { useGame } from '../store'
 import { MINIGAME_REWARDS } from '../../game/economy'
 import { remainingRewardedPlays } from '../../game/engine'
 import type { MinigameId } from '../../game/types'
+import { useUiSound } from '../useUiSound'
 
 type Game = MinigameId
 
@@ -19,6 +20,11 @@ function PlaysLeftBadge({ game }: { game: Game }) {
 
 export function MiniGamesScreen() {
   const [game, setGame] = useState<Game | null>(null)
+  const ui = useUiSound()
+  const open = (g: Game) => {
+    ui.click()
+    setGame(g)
+  }
   if (game === 'rps') return <Rps onBack={() => setGame(null)} />
   if (game === 'memory') return <Memory onBack={() => setGame(null)} />
   if (game === 'catch') return <Catch onBack={() => setGame(null)} />
@@ -26,21 +32,21 @@ export function MiniGamesScreen() {
     <div className="minigames">
       <h3>Mini-jeux</h3>
       <p className="minigames-sub">Gagnez des pièces pour gâter votre Minigotchi.</p>
-      <button className="mg-card" onClick={() => setGame('rps')}>
+      <button className="mg-card" onClick={() => open('rps')}>
         <img src="/assets/icons/mg-rps.svg" alt="" width={32} height={32} />
         <span className="mg-card-text">
           Pierre-feuille-ciseaux
           <PlaysLeftBadge game="rps" />
         </span>
       </button>
-      <button className="mg-card" onClick={() => setGame('memory')}>
+      <button className="mg-card" onClick={() => open('memory')}>
         <img src="/assets/icons/mg-memory.svg" alt="" width={32} height={32} />
         <span className="mg-card-text">
           Memory
           <PlaysLeftBadge game="memory" />
         </span>
       </button>
-      <button className="mg-card" onClick={() => setGame('catch')}>
+      <button className="mg-card" onClick={() => open('catch')}>
         <img src="/assets/icons/mg-catch.svg" alt="" width={32} height={32} />
         <span className="mg-card-text">
           Attrape-tout !

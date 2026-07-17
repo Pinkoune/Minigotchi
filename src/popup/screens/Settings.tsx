@@ -1,5 +1,6 @@
 import { useGame } from '../store'
 import { SyncIndicator } from '../components/Hud'
+import { playToggle } from '../../shared/sound'
 
 export function SettingsScreen() {
   const { save, profile, syncStatus, updateSettings, logout, openLogin } = useGame()
@@ -14,7 +15,10 @@ export function SettingsScreen() {
         <input
           type="checkbox"
           checked={save.settings.sound}
-          onChange={(e) => updateSettings({ sound: e.target.checked })}
+          onChange={(e) => {
+            updateSettings({ sound: e.target.checked })
+            if (e.target.checked) playToggle() // audible confirmation it's on
+          }}
         />
       </label>
       <label className="setting-row">
