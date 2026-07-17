@@ -4,7 +4,7 @@ import { applyAction, applyDecay } from '../game/engine'
 import { newSave } from '../game/save'
 import { storeLocalSave } from '../storage'
 import { adoptInitialSave, debounce, pushSave, type SyncStatus } from '../sync'
-import { login as oauthLogin, logout as oauthLogout, waitForInitialUser, type Provider, type UserProfile } from '../auth'
+import { logout as oauthLogout, waitForInitialUser, type Provider, type UserProfile } from '../auth'
 import { playEventSound } from '../shared/sound'
 
 export type Screen = 'game' | 'shop' | 'minigames' | 'dex' | 'settings'
@@ -128,7 +128,18 @@ export const useGame = create<GameStore>((set, get) => {
     login: async (provider) => {
       set({ authBusy: true, authError: null })
       try {
-        const profile = await oauthLogin(provider)
+        // Delegate the OAuth flow to the service worker: the popup can be
+        // closed by the browser when the account-chooser window steals focus,
+        // which would abort a flow run here. The worker completes and persists
+        // the session regardless; if this popup survives, we apply it live,
+        // otherwise init() restores it on the next open.
+        const res = (await chrome.runtime.sendMessage({
+          type: 'minigotchi-login',
+          provider,
+        })) as { ok: true; profile: UserProfile } | { ok: false; error: string } | undefined
+        if (!res) throw new Error('Connexion interrompue')
+        if (!res.ok) throw new Error(res.error)
+        const { profile } = res
         const { save, status } = await adoptInitialSave(profile.userId, Date.now())
         set({ profile, save, syncStatus: status, authBusy: false, showLogin: false })
       } catch (err) {

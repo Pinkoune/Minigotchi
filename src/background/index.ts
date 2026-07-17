@@ -4,6 +4,7 @@
 
 import { applyDecay, hasUrgentNeed } from '../game/engine'
 import { getLastNotifiedAt, loadLocalSave, setLastNotifiedAt, storeLocalSave } from '../storage'
+import { login as oauthLogin, type Provider } from '../auth'
 
 const TICK_ALARM = 'minigotchi-tick'
 const TICK_MINUTES = 2
@@ -21,6 +22,34 @@ async function ensureAlarm(): Promise<void> {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === TICK_ALARM) void tick()
+})
+
+// OAuth runs here, not in the popup: an extension popup closes when it loses
+// focus (e.g. when the provider's account-chooser window opens, notably in
+// Brave), which would tear down the flow mid-way. The service worker survives,
+// completes the Firebase sign-in and persists it (indexedDB). The popup then
+// gets the profile if it's still open, or restores the session on next open.
+interface LoginMessage {
+  type: 'minigotchi-login'
+  provider: Provider
+}
+
+function isLoginMessage(msg: unknown): msg is LoginMessage {
+  return (
+    typeof msg === 'object' &&
+    msg !== null &&
+    (msg as { type?: unknown }).type === 'minigotchi-login'
+  )
+}
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (!isLoginMessage(msg)) return
+  oauthLogin(msg.provider)
+    .then((profile) => sendResponse({ ok: true, profile }))
+    .catch((err) =>
+      sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }),
+    )
+  return true // keep the message channel open for the async response
 })
 
 async function tick(): Promise<void> {

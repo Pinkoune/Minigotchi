@@ -1,5 +1,5 @@
 import { type FirebaseApp, initializeApp } from 'firebase/app'
-import { type Auth, getAuth } from 'firebase/auth'
+import { type Auth, indexedDBLocalPersistence, initializeAuth } from 'firebase/auth'
 import { type Firestore, getFirestore } from 'firebase/firestore'
 
 // The Firebase web config is not a secret (it's shipped in every client);
@@ -23,7 +23,10 @@ export function firebaseApp(): FirebaseApp {
 }
 
 export function firebaseAuth(): Auth {
-  auth ??= getAuth(firebaseApp())
+  // getAuth() lets the SDK auto-detect persistence, which falls back to
+  // in-memory in an MV3 extension popup — the session then dies when the
+  // popup closes. Pin indexedDB persistence so the session survives reopens.
+  auth ??= initializeAuth(firebaseApp(), { persistence: indexedDBLocalPersistence })
   return auth
 }
 
